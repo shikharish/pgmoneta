@@ -32,6 +32,7 @@
 #include <security.h>
 #include <utils.h>
 #include <workers.h>
+#include <io.h>
 
 /* System */
 #include <dirent.h>
@@ -672,17 +673,17 @@ encrypt_file(char* from, char* to, int enc)
       goto error;
    }
 
-   in = fopen(from, "rb");
+   in = pgmoneta_open_file(from, "rb");
    if (in == NULL)
    {
-      pgmoneta_log_error("fopen: Could not open %s", from);
+      pgmoneta_log_error("pgmoneta_open_file: Could not open %s", from);
       goto error;
    }
 
-   out = fopen(to, "w");
+   out = pgmoneta_open_file(to, "w");
    if (out == NULL)
    {
-      pgmoneta_log_error("fopen: Could not open %s", to);
+      pgmoneta_log_error("pgmoneta_open_file: Could not open %s", to);
       goto error;
    }
 
@@ -699,9 +700,9 @@ encrypt_file(char* from, char* to, int enc)
          pgmoneta_log_error("EVP_CipherUpdate: failed to process block");
          goto error;
       }
-      if (fwrite(outbuf, sizeof(char), outl, out) != outl)
+      if (pgmoneta_write_file(outbuf, sizeof(char), outl, out) != outl)
       {
-         pgmoneta_log_error("fwrite: failed to write cipher");
+         pgmoneta_log_error("pgmoneta_write_file: failed to write cipher");
          goto error;
       }
    }
@@ -720,9 +721,9 @@ encrypt_file(char* from, char* to, int enc)
 
    if (f_len)
    {
-      if (fwrite(outbuf, sizeof(char), f_len, out) != f_len)
+      if (pgmoneta_write_file(outbuf, sizeof(char), f_len, out) != f_len)
       {
-         pgmoneta_log_error("fwrite: failed to write final block");
+         pgmoneta_log_error("pgmoneta_write_file: failed to write final block");
          goto error;
       }
    }
