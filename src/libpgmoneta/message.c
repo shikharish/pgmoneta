@@ -27,6 +27,8 @@
  */
 
 /* pgmoneta */
+#include "io.h"
+#include <fcntl.h>
 #include <pgmoneta.h>
 #include <achv.h>
 #include <extension.h>
@@ -36,6 +38,7 @@
 #include <message.h>
 #include <network.h>
 #include <security.h>
+#include <stdbool.h>
 #include <utils.h>
 
 #include <assert.h>
@@ -112,8 +115,8 @@ pgmoneta_copy_message(struct message* msg)
 
 #ifdef DEBUG
    assert(msg != NULL);
-   assert(msg->data != NULL);
-   assert(msg->length > 0);
+   // assert(msg->data != NULL);
+   // assert(msg->length > 0);
 #endif
 
    copy = allocate_message(msg->length);
@@ -172,7 +175,7 @@ pgmoneta_log_copyfail_message(struct message* msg)
 void
 pgmoneta_log_error_response_message(struct message* msg)
 {
-   ssize_t offset = 1 + 4;
+   ssize_t offset = 0;
    signed char field_type = 0;
    char* error = NULL;
    char* error_code = NULL;
@@ -213,7 +216,7 @@ pgmoneta_log_error_response_message(struct message* msg)
 void
 pgmoneta_log_notice_response_message(struct message* msg)
 {
-   ssize_t offset = 1 + 4;
+   ssize_t offset = 0;
    signed char field_type = 0;
    char* error = NULL;
    char* error_code = NULL;
@@ -254,15 +257,15 @@ pgmoneta_log_notice_response_message(struct message* msg)
 int
 pgmoneta_write_empty(SSL* ssl, int socket)
 {
-   char zero[1];
+   // char zero[1];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
-   memset(&zero, 0, sizeof(zero));
+   // memset(&zero, 0, sizeof(zero));
 
    msg.kind = 0;
-   msg.length = 1;
-   msg.data = &zero;
+   msg.length = -4;
+   msg.data = NULL;
 
    if (ssl == NULL)
    {
@@ -275,17 +278,17 @@ pgmoneta_write_empty(SSL* ssl, int socket)
 int
 pgmoneta_write_notice(SSL* ssl, int socket)
 {
-   char notice[1];
+   // char notice[1];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
-   memset(&notice, 0, sizeof(notice));
+   // memset(&notice, 0, sizeof(notice));
 
-   notice[0] = 'N';
+   // notice[0] = 'N';
 
    msg.kind = 'N';
-   msg.length = 1;
-   msg.data = &notice;
+   msg.length = -4;
+   msg.data = NULL;
 
    if (ssl == NULL)
    {
@@ -298,17 +301,17 @@ pgmoneta_write_notice(SSL* ssl, int socket)
 int
 pgmoneta_write_tls(SSL* ssl, int socket)
 {
-   char tls[1];
+   // char tls[1];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
-   memset(&tls, 0, sizeof(tls));
+   // memset(&tls, 0, sizeof(tls));
 
-   tls[0] = 'S';
+   // tls[0] = 'S';
 
    msg.kind = 'S';
-   msg.length = 1;
-   msg.data = &tls;
+   msg.length = -4;
+   msg.data = NULL;
 
    if (ssl == NULL)
    {
@@ -321,18 +324,16 @@ pgmoneta_write_tls(SSL* ssl, int socket)
 int
 pgmoneta_write_terminate(SSL* ssl, int socket)
 {
-   char terminate[5];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
-   memset(&terminate, 0, sizeof(terminate));
 
-   pgmoneta_write_byte(&terminate, 'X');
-   pgmoneta_write_int32(&(terminate[1]), 4);
+   // pgmoneta_write_byte(&terminate, 'X');
+   // pgmoneta_write_int32(&(terminate[1]), 4);
 
    msg.kind = 'X';
-   msg.length = 5;
-   msg.data = &terminate;
+   msg.length = 0;
+   msg.data = NULL;
 
    if (ssl == NULL)
    {
@@ -345,19 +346,19 @@ pgmoneta_write_terminate(SSL* ssl, int socket)
 int
 pgmoneta_write_connection_refused(SSL* ssl, int socket)
 {
-   int size = 46;
+   int size = 46 - 5;
    char connection_refused[size];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
    memset(&connection_refused, 0, sizeof(connection_refused));
 
-   pgmoneta_write_byte(&connection_refused, 'E');
-   pgmoneta_write_int32(&(connection_refused[1]), size - 1);
-   pgmoneta_write_string(&(connection_refused[5]), "SFATAL");
-   pgmoneta_write_string(&(connection_refused[12]), "VFATAL");
-   pgmoneta_write_string(&(connection_refused[19]), "C53300");
-   pgmoneta_write_string(&(connection_refused[26]), "Mconnection refused");
+   // pgmoneta_write_byte(&connection_refused, 'E');
+   // pgmoneta_write_int32(&(connection_refused[1]), size - 1);
+   pgmoneta_write_string(&(connection_refused[0]), "SFATAL");
+   pgmoneta_write_string(&(connection_refused[7]), "VFATAL");
+   pgmoneta_write_string(&(connection_refused[14]), "C53300");
+   pgmoneta_write_string(&(connection_refused[21]), "Mconnection refused");
 
    msg.kind = 'E';
    msg.length = size;
@@ -374,6 +375,7 @@ pgmoneta_write_connection_refused(SSL* ssl, int socket)
 int
 pgmoneta_write_connection_refused_old(SSL* ssl, int socket)
 {
+   pgmoneta_log_trace("REFUSED_OLD");
    int size = 20;
    char connection_refused[size];
    struct message msg;
@@ -402,15 +404,15 @@ pgmoneta_create_auth_password_response(char* password, struct message** msg)
    struct message* m = NULL;
    size_t size;
 
-   size = 6 + strlen(password);
+   size = 1 + strlen(password);
 
    m = allocate_message(size);
 
    m->kind = 'p';
 
-   pgmoneta_write_byte(m->data, 'p');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, password);
+   // pgmoneta_write_byte(m->data, 'p');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data, password);
 
    *msg = m;
 
@@ -423,15 +425,15 @@ pgmoneta_create_auth_md5_response(char* md5, struct message** msg)
    struct message* m = NULL;
    size_t size;
 
-   size = 1 + 4 + strlen(md5) + 1;
+   size = strlen(md5) + 1;
 
    m = allocate_message(size);
 
    m->kind = 'p';
 
-   pgmoneta_write_byte(m->data, 'p');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, md5);
+   // pgmoneta_write_byte(m->data, 'p');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data, md5);
 
    *msg = m;
 
@@ -441,19 +443,19 @@ pgmoneta_create_auth_md5_response(char* md5, struct message** msg)
 int
 pgmoneta_write_auth_scram256(SSL* ssl, int socket)
 {
-   char scram[24];
+   char scram[19];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
    memset(&scram, 0, sizeof(scram));
 
-   scram[0] = 'R';
-   pgmoneta_write_int32(&(scram[1]), 23);
-   pgmoneta_write_int32(&(scram[5]), 10);
-   pgmoneta_write_string(&(scram[9]), "SCRAM-SHA-256");
+   // scram[0] = 'R';
+   // pgmoneta_write_int32(&(scram[1]), 23);
+   pgmoneta_write_int32(&(scram[0]), 10);
+   pgmoneta_write_string(&(scram[4]), "SCRAM-SHA-256");
 
    msg.kind = 'R';
-   msg.length = 24;
+   msg.length = 19;
    msg.data = &scram;
 
    if (ssl == NULL)
@@ -470,17 +472,17 @@ pgmoneta_create_auth_scram256_response(char* nounce, struct message** msg)
    struct message* m = NULL;
    size_t size;
 
-   size = 1 + 4 + 13 + 4 + 9 + strlen(nounce);
+   size = 13 + 4 + 9 + strlen(nounce);
 
    m = allocate_message(size);
 
    m->kind = 'p';
 
-   pgmoneta_write_byte(m->data, 'p');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, "SCRAM-SHA-256");
-   pgmoneta_write_string(m->data + 22, " n,,n=,r=");
-   pgmoneta_write_string(m->data + 31, nounce);
+   // pgmoneta_write_byte(m->data, 'p');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data, "SCRAM-SHA-256");
+   pgmoneta_write_string(m->data + 17, " n,,n=,r=");
+   pgmoneta_write_string(m->data + 26, nounce);
 
    *msg = m;
 
@@ -493,21 +495,21 @@ pgmoneta_create_auth_scram256_continue(char* cn, char* sn, char* salt, struct me
    struct message* m = NULL;
    size_t size;
 
-   size = 1 + 4 + 4 + 2 + strlen(cn) + strlen(sn) + 3 + strlen(salt) + 7;
+   size = 4 + 2 + strlen(cn) + strlen(sn) + 3 + strlen(salt) + 7;
 
    m = allocate_message(size);
 
    m->kind = 'R';
 
-   pgmoneta_write_byte(m->data, 'R');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_int32(m->data + 5, 11);
-   pgmoneta_write_string(m->data + 9, "r=");
-   pgmoneta_write_string(m->data + 11, cn);
-   pgmoneta_write_string(m->data + 11 + strlen(cn), sn);
-   pgmoneta_write_string(m->data + 11 + strlen(cn) + strlen(sn), ",s=");
-   pgmoneta_write_string(m->data + 11 + strlen(cn) + strlen(sn) + 3, salt);
-   pgmoneta_write_string(m->data + 11 + strlen(cn) + strlen(sn) + 3 + strlen(salt), ",i=4096");
+   // pgmoneta_write_byte(m->data, 'R');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_int32(m->data, 11);
+   pgmoneta_write_string(m->data + 4, "r=");
+   pgmoneta_write_string(m->data + 6, cn);
+   pgmoneta_write_string(m->data + 6 + strlen(cn), sn);
+   pgmoneta_write_string(m->data + 6 + strlen(cn) + strlen(sn), ",s=");
+   pgmoneta_write_string(m->data + 6 + strlen(cn) + strlen(sn) + 3, salt);
+   pgmoneta_write_string(m->data + 6 + strlen(cn) + strlen(sn) + 3 + strlen(salt), ",i=4096");
 
    *msg = m;
 
@@ -520,17 +522,17 @@ pgmoneta_create_auth_scram256_continue_response(char* wp, char* p, struct messag
    struct message* m = NULL;
    size_t size;
 
-   size = 1 + 4 + strlen(wp) + 3 + strlen(p);
+   size = strlen(wp) + 3 + strlen(p);
 
    m = allocate_message(size);
 
    m->kind = 'p';
 
-   pgmoneta_write_byte(m->data, 'p');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, wp);
-   pgmoneta_write_string(m->data + 5 + strlen(wp), ",p=");
-   pgmoneta_write_string(m->data + 5 + strlen(wp) + 3, p);
+   // pgmoneta_write_byte(m->data, 'p');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data, wp);
+   pgmoneta_write_string(m->data + strlen(wp), ",p=");
+   pgmoneta_write_string(m->data + strlen(wp) + 3, p);
 
    *msg = m;
 
@@ -542,18 +544,21 @@ pgmoneta_create_auth_scram256_final(char* ss, struct message** msg)
 {
    struct message* m = NULL;
    size_t size;
+   int offset = 0;
 
-   size = 1 + 4 + 4 + 2 + strlen(ss);
+   size = 4 + 2 + strlen(ss);
 
    m = allocate_message(size);
 
    m->kind = 'R';
 
-   pgmoneta_write_byte(m->data, 'R');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_int32(m->data + 5, 12);
-   pgmoneta_write_string(m->data + 9, "v=");
-   pgmoneta_write_string(m->data + 11, ss);
+   // pgmoneta_write_byte(m->data, 'R');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_int32(m->data + offset, 12);
+   offset += 4;
+   pgmoneta_write_string(m->data + offset, "v=");
+   offset += 2;
+   pgmoneta_write_string(m->data + offset, ss);
 
    *msg = m;
 
@@ -563,18 +568,19 @@ pgmoneta_create_auth_scram256_final(char* ss, struct message** msg)
 int
 pgmoneta_write_auth_success(SSL* ssl, int socket)
 {
-   char success[9];
+   int size = 4;
+   char success[size];
    struct message msg;
 
    memset(&msg, 0, sizeof(struct message));
    memset(&success, 0, sizeof(success));
 
-   success[0] = 'R';
-   pgmoneta_write_int32(&(success[1]), 8);
-   pgmoneta_write_int32(&(success[5]), 0);
+   // success[0] = 'R';
+   // pgmoneta_write_int32(&(success[1]), 8);
+   pgmoneta_write_int32(&(success[0]), 0);
 
    msg.kind = 'R';
-   msg.length = 9;
+   msg.length = size;
    msg.data = &success;
 
    if (ssl == NULL)
@@ -591,14 +597,14 @@ pgmoneta_create_ssl_message(struct message** msg)
    struct message* m = NULL;
    size_t size;
 
-   size = 8;
+   size = 4;
 
    m = allocate_message(size);
 
    m->kind = 0;
 
-   pgmoneta_write_int32(m->data, size);
-   pgmoneta_write_int32(m->data + 4, 80877103);
+   // pgmoneta_write_int32(m->data, size);
+   pgmoneta_write_int32(m->data, 80877103);
 
    *msg = m;
 
@@ -612,10 +618,11 @@ pgmoneta_create_startup_message(char* username, char* database, bool replication
    size_t size;
    size_t us;
    size_t ds;
+   int offset = 0;
 
    us = strlen(username);
    ds = strlen(database);
-   size = 4 + 4 + 4 + 1 + us + 1 + 8 + 1 + ds + 1 + 17 + 9 + 1;
+   size = 4 + 4 + 1 + us + 1 + 8 + 1 + ds + 1 + 17 + 9 + 1;
 
    if (replication)
    {
@@ -626,19 +633,27 @@ pgmoneta_create_startup_message(char* username, char* database, bool replication
 
    m->kind = 0;
 
-   pgmoneta_write_int32(m->data, size);
-   pgmoneta_write_int32(m->data + 4, 196608);
-   pgmoneta_write_string(m->data + 8, "user");
-   pgmoneta_write_string(m->data + 13, username);
-   pgmoneta_write_string(m->data + 13 + us + 1, "database");
-   pgmoneta_write_string(m->data + 13 + us + 1 + 9, database);
-   pgmoneta_write_string(m->data + 13 + us + 1 + 9 + ds + 1, "application_name");
-   pgmoneta_write_string(m->data + 13 + us + 1 + 9 + ds + 1 + 17, "pgmoneta");
+   // pgmoneta_write_int32(m->data, size);
+   pgmoneta_write_int32(m->data + offset, 196608);
+   offset += 4;
+   pgmoneta_write_string(m->data + offset, "user");
+   offset += 5;
+   pgmoneta_write_string(m->data + offset, username);
+   offset += us + 1;
+   pgmoneta_write_string(m->data + offset, "database");
+   offset += 9;
+   pgmoneta_write_string(m->data + offset, database);
+   offset += ds + 1;
+   pgmoneta_write_string(m->data + offset, "application_name");
+   offset += 17;
+   pgmoneta_write_string(m->data + offset, "pgmoneta");
+   offset += 9;
 
    if (replication)
    {
-      pgmoneta_write_string(m->data + 13 + us + 1 + 9 + ds + 1 + 17 + 9, "replication");
-      pgmoneta_write_string(m->data + 13 + us + 1 + 9 + ds + 1 + 17 + 9 + 12, "1");
+      pgmoneta_write_string(m->data + offset, "replication");
+      offset += 12;
+      pgmoneta_write_string(m->data + offset, "1");
    }
 
    *msg = m;
@@ -652,15 +667,15 @@ pgmoneta_create_identify_system_message(struct message** msg)
    struct message* m = NULL;
    size_t size;
 
-   size = 1 + 4 + 17;
+   size = 17;
 
    m = allocate_message(size);
 
    m->kind = 'Q';
 
-   pgmoneta_write_byte(m->data, 'Q');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, "IDENTIFY_SYSTEM;");
+   // pgmoneta_write_byte(m->data, 'Q');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data, "IDENTIFY_SYSTEM;");
 
    *msg = m;
 
@@ -673,21 +688,24 @@ pgmoneta_create_timeline_history_message(int timeline, struct message** msg)
    char tl[8];
    struct message* m = NULL;
    size_t size;
+   int offset = 0;
 
    memset(&tl[0], 0, sizeof(tl));
    snprintf(&tl[0], sizeof(tl), "%d", timeline);
 
-   size = 1 + 4 + 17 + strlen(tl) + 1 + 1;
+   size = 17 + strlen(tl) + 1 + 1;
 
    m = allocate_message(size);
 
    m->kind = 'Q';
 
-   pgmoneta_write_byte(m->data, 'Q');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, "TIMELINE_HISTORY ");
-   memcpy(m->data + 5 + 17, tl, strlen(tl));
-   pgmoneta_write_string(m->data + 5 + 17 + strlen(tl), ";");
+   // pgmoneta_write_byte(m->data, 'Q');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data + offset, "TIMELINE_HISTORY ");
+   offset += 17;
+   memcpy(m->data + offset, tl, strlen(tl));
+   offset += strlen(tl);
+   pgmoneta_write_string(m->data + offset, ";");
 
    *msg = m;
 
@@ -699,6 +717,7 @@ pgmoneta_create_read_replication_slot_message(char* slot, struct message** msg)
 {
    struct message* m = NULL;
    size_t size;
+   int offset = 0;
 
    size = 1 + 4 + 22 + strlen(slot) + 1 + 1;
 
@@ -706,11 +725,13 @@ pgmoneta_create_read_replication_slot_message(char* slot, struct message** msg)
 
    m->kind = 'Q';
 
-   pgmoneta_write_byte(m->data, 'Q');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   pgmoneta_write_string(m->data + 5, "READ_REPLICATION_SLOT ");
-   pgmoneta_write_string(m->data + 5 + 22, slot);
-   pgmoneta_write_string(m->data + 5 + 22 + strlen(slot), ";");
+   // pgmoneta_write_byte(m->data, 'Q');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   pgmoneta_write_string(m->data + offset, "READ_REPLICATION_SLOT ");
+   offset += 22;
+   pgmoneta_write_string(m->data + offset, slot);
+   offset += strlen(slot);
+   pgmoneta_write_string(m->data + offset, ";");
 
    *msg = m;
 
@@ -987,15 +1008,15 @@ pgmoneta_create_search_replication_slot_message(char* slot_name, struct message*
 
    snprintf(cmd, sizeof(cmd), "SELECT slot_name, slot_type FROM pg_replication_slots WHERE slot_name = '%s';", slot_name);
 
-   size = 1 + 4 + strlen(cmd) + 1;
+   size = strlen(cmd) + 1;
 
    m = allocate_message(size);
 
    m->kind = 'Q';
 
-   pgmoneta_write_byte(m->data, 'Q');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   memcpy(m->data + 5, &cmd[0], strlen(cmd));
+   // pgmoneta_write_byte(m->data, 'Q');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   memcpy(m->data, &cmd[0], strlen(cmd));
 
    *msg = m;
 
@@ -1038,15 +1059,16 @@ pgmoneta_create_query_message(char* query, struct message** msg)
 
    memset(&cmd[0], 0, sizeof(cmd));
    strcpy(cmd, query);
-   size = 1 + 4 + strlen(cmd) + 1;
+   size = strlen(cmd) + 1;
 
    m = allocate_message(size);
 
    m->kind = 'Q';
+   m->length = size;
 
-   pgmoneta_write_byte(m->data, 'Q');
-   pgmoneta_write_int32(m->data + 1, size - 1);
-   memcpy(m->data + 5, &cmd[0], strlen(cmd));
+   // pgmoneta_write_byte(m->data, 'Q');
+   // pgmoneta_write_int32(m->data + 1, size - 1);
+   memcpy(m->data, &cmd[0], strlen(cmd));
 
    *msg = m;
 
@@ -1361,7 +1383,7 @@ create_D_tuple(int number_of_columns, struct message* msg, struct tuple** tuple)
    result->data = (char**)malloc(number_of_columns * sizeof(char*));
    result->next = NULL;
 
-   offset = 7;
+   offset = 2;
 
    for (int i = 0; i < number_of_columns; i++)
    {
@@ -1391,7 +1413,7 @@ get_number_of_columns(struct message* msg)
 {
    if (msg->kind == 'T')
    {
-      return pgmoneta_read_int16(msg->data + 5);
+      return pgmoneta_read_int16(msg->data);
    }
 
    return 0;
@@ -1409,11 +1431,11 @@ get_column_name(struct message* msg, int index, char** name)
 
    if (msg->kind == 'T')
    {
-      cols = pgmoneta_read_int16(msg->data + 5);
+      cols = pgmoneta_read_int16(msg->data);
 
       if (index < cols)
       {
-         offset = 7;
+         offset = 2;
 
          while (current < index)
          {
@@ -1448,6 +1470,9 @@ read_message(int socket, bool block, int timeout, struct message** msg)
    ssize_t numbytes;
    struct timeval tv;
    struct message* m = NULL;
+   char kind_buf[1] = {0};
+   char length_buf[4] = {0};
+   int total_bytes = 0;
 
    if (unlikely(timeout > 0))
    {
@@ -1460,12 +1485,40 @@ read_message(int socket, bool block, int timeout, struct message** msg)
    {
       m = pgmoneta_memory_message();
 
+      if (total_bytes == 0)
+      {
+         numbytes = read(socket, kind_buf, 1);
+         pgmoneta_log_trace("%d", numbytes);
+         if (numbytes != 1)
+         {
+            perror("error reading");
+            goto error;
+         }
+         else
+         {
+            total_bytes += numbytes;
+            m->kind = kind_buf[0];
+         }
+      }
+      if (total_bytes == 1)
+      {
+         numbytes = read(socket, length_buf, 4);
+         pgmoneta_log_trace("%d", numbytes);
+         if (numbytes != 4)
+         {
+            goto error;
+         }
+         else
+         {
+            total_bytes += numbytes;
+            m->length = pgmoneta_read_int32(length_buf) - 4;
+         }
+      }
+      numbytes = 0;
       numbytes = read(socket, m->data, DEFAULT_BUFFER_SIZE);
 
       if (likely(numbytes > 0))
       {
-         m->kind = (signed char)(*((char*)m->data));
-         m->length = numbytes;
          *msg = m;
 
          if (unlikely(timeout > 0))
@@ -1500,6 +1553,7 @@ read_message(int socket, bool block, int timeout, struct message** msg)
       }
       else
       {
+error:
          pgmoneta_memory_free();
 
          if ((errno == EAGAIN || errno == EWOULDBLOCK) && block)
@@ -1543,11 +1597,49 @@ write_message(int socket, struct message* msg)
    numbytes = 0;
    offset = 0;
    totalbytes = 0;
-   remaining = msg->length;
+   remaining = msg->length + 4;
+   if (msg->kind != 0)
+   {
+      remaining++;
+   }
+   char kind_buf[1] = {0};
+   kind_buf[0] = msg->kind;
+   char length_buf[4] = {0};
+   pgmoneta_write_int32(length_buf, msg->length);
 
    do
    {
-      numbytes = write(socket, msg->data + offset, remaining);
+      if (remaining == msg->length + 5)
+      {
+         numbytes = write(socket, kind_buf, 1);
+         if (numbytes != 1)
+         {
+            goto error;
+         }
+         else
+         {
+            remaining -= numbytes;
+            totalbytes += numbytes;
+         }
+      }
+      if (remaining == msg->length + 4)
+      {
+         numbytes = write(socket, length_buf, 4);
+         if (numbytes != 4)
+         {
+            goto error;
+         }
+         else
+         {
+            remaining -= numbytes;
+            totalbytes += numbytes;
+         }
+      }
+      numbytes = 0;
+      if (remaining > 0)
+      {
+         numbytes = write(socket, msg->data + offset, remaining);
+      }
 
       if (likely(numbytes == msg->length))
       {
@@ -1570,6 +1662,7 @@ write_message(int socket, struct message* msg)
       }
       else
       {
+error:
          switch (errno)
          {
             case EAGAIN:
@@ -1594,6 +1687,9 @@ ssl_read_message(SSL* ssl, int timeout, struct message** msg)
    ssize_t numbytes;
    time_t start_time;
    struct message* m = NULL;
+   char kind_buf[1] = {0};
+   char length_buf[4] = {0};
+   int total_bytes = 0;
 
    if (unlikely(timeout > 0))
    {
@@ -1604,19 +1700,44 @@ ssl_read_message(SSL* ssl, int timeout, struct message** msg)
    {
       m = pgmoneta_memory_message();
 
+      if (total_bytes == 0)
+      {
+         numbytes = SSL_read(ssl, kind_buf, 1);
+         if (numbytes != 1)
+         {
+            goto error;
+         }
+         else
+         {
+            total_bytes += numbytes;
+            m->kind = kind_buf[0];
+         }
+      }
+      if (total_bytes == 1)
+      {
+         numbytes = SSL_read(ssl, length_buf, 4);
+         if (numbytes != 4)
+         {
+            goto error;
+         }
+         else
+         {
+            total_bytes += numbytes;
+            m->length = pgmoneta_read_int32(length_buf) - 4;
+         }
+      }
+      numbytes = 0;
       numbytes = SSL_read(ssl, m->data, DEFAULT_BUFFER_SIZE);
 
-      if (likely(numbytes > 0))
+      if (numbytes == m->length)
       {
-         m->kind = (signed char)(*((char*)m->data));
-         m->length = numbytes;
          *msg = m;
-
          return MESSAGE_STATUS_OK;
       }
       else
       {
          int err;
+error:
 
          pgmoneta_memory_free();
 
@@ -1694,11 +1815,50 @@ ssl_write_message(SSL* ssl, struct message* msg)
    numbytes = 0;
    offset = 0;
    totalbytes = 0;
-   remaining = msg->length;
+   remaining = msg->length + 4;
+   int condition = (msg->kind != 0) || (msg->kind == 0 && msg->length == 1);
+   if (condition)
+   {
+      remaining++;
+   }
+   char kind_buf[1] = {0};
+   kind_buf[0] = msg->kind;
+   char length_buf[4] = {0};
+   pgmoneta_write_int32(length_buf, msg->length);
 
    do
    {
-      numbytes = SSL_write(ssl, msg->data + offset, remaining);
+      if (condition && remaining == msg->length + 5)
+      {
+         numbytes = SSL_write(ssl, kind_buf, 1);
+         if (numbytes != 1)
+         {
+            goto error;
+         }
+         else
+         {
+            remaining -= numbytes;
+            totalbytes += numbytes;
+         }
+      }
+      if (msg->length >= 0 && remaining == msg->length + 4)
+      {
+         numbytes = SSL_write(ssl, length_buf, 4);
+         if (numbytes != 4)
+         {
+            goto error;
+         }
+         else
+         {
+            remaining -= numbytes;
+            totalbytes += numbytes;
+         }
+      }
+      numbytes = 0;
+      if (remaining > 0)
+      {
+         numbytes = SSL_write(ssl, msg->data + offset, remaining);
+      }
 
       if (likely(numbytes == msg->length))
       {
@@ -1721,7 +1881,9 @@ ssl_write_message(SSL* ssl, struct message* msg)
       }
       else
       {
-         unsigned long err = SSL_get_error(ssl, numbytes);
+         unsigned long err;
+error:
+         err = SSL_get_error(ssl, numbytes);
 
          switch (err)
          {
@@ -1768,9 +1930,10 @@ ssl_write_message(SSL* ssl, struct message* msg)
 }
 
 int
-pgmoneta_read_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer)
+pgmoneta_read_copy_stream(SSL* ssl, int socket, int bytes, struct stream_buffer* buffer)
 {
    int numbytes = 0;
+   int reqbytes = bytes;
    bool keep_read = false;
    int err;
    struct configuration* config;
@@ -1782,14 +1945,15 @@ pgmoneta_read_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer)
     * try enlarging it to be at least big enough for one TCP packet (I'm using 1500B here)
     * we don't expect it to absolutely work
     */
-   if (buffer->size - buffer->end < 1500)
+   if (buffer->size - buffer->end < 1500 || buffer->size - buffer->end - reqbytes < 1500)
    {
       if (pgmoneta_memory_stream_buffer_enlarge(buffer, 1500))
       {
          pgmoneta_log_error("Fail to enlarge stream buffer");
       }
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d, size = %d", buffer->cursor, buffer->start, buffer->end, buffer->size);
    }
-   if (buffer->end >= buffer->size)
+   if (buffer->end >= buffer->size || reqbytes > buffer->size - buffer->end)
    {
       pgmoneta_log_error("Not enough space to read new copy-out data");
       goto error;
@@ -1798,14 +1962,35 @@ pgmoneta_read_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer)
    {
       if (ssl != NULL)
       {
-         numbytes = SSL_read(ssl, buffer->buffer + buffer->end, buffer->size - buffer->end);
+         if (reqbytes == -1)
+         {
+            numbytes = SSL_read(ssl, buffer->buffer + buffer->end, buffer->size - buffer->end);
+         }
+         else
+         {
+            numbytes = SSL_read(ssl, buffer->buffer + buffer->end, reqbytes);
+         }
       }
       else
       {
-         numbytes = read(socket, buffer->buffer + buffer->end, buffer->size - buffer->end);
+         if (reqbytes == -1)
+         {
+            numbytes = read(socket, buffer->buffer + buffer->end, buffer->size - buffer->end);
+         }
+         else
+         {
+            numbytes = read(socket, buffer->buffer + buffer->end, reqbytes);
+         }
       }
 
-      if (likely(numbytes > 0))
+      if (reqbytes > 0 && numbytes > 0 && numbytes < reqbytes)
+      {
+         keep_read = true;
+         buffer->end += numbytes;
+         reqbytes -= numbytes;
+         continue;
+      }
+      else if ((reqbytes > 0 && numbytes == reqbytes) || (reqbytes == -1 && numbytes > 0))
       {
          buffer->end += numbytes;
          return MESSAGE_STATUS_OK;
@@ -1834,6 +2019,7 @@ pgmoneta_read_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer)
          {
 ssl_error:
             err = SSL_get_error(ssl, numbytes);
+            // pgmoneta_log_trace("numbytes:%d ssl_error: %d", numbytes, err);
             switch (err)
             {
                case SSL_ERROR_ZERO_RETURN:
@@ -1911,7 +2097,7 @@ pgmoneta_consume_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer,
    {
       while (buffer->cursor >= buffer->end)
       {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
+         status = pgmoneta_read_copy_stream(ssl, socket, 1, buffer);
          if (status == MESSAGE_STATUS_ZERO)
          {
             SLEEP(1000000L);
@@ -1926,7 +2112,7 @@ pgmoneta_consume_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer,
       // try to get message length
       while (buffer->cursor + 4 >= buffer->end)
       {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
+         status = pgmoneta_read_copy_stream(ssl, socket, 4, buffer);
          if (status == MESSAGE_STATUS_ZERO)
          {
             SLEEP(1000000L);
@@ -1940,7 +2126,7 @@ pgmoneta_consume_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer,
       // receive the whole message even if we are going to skip it
       while (buffer->cursor + length >= buffer->end)
       {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
+         status = pgmoneta_read_copy_stream(ssl, socket, length, buffer);
          if (status == MESSAGE_STATUS_ZERO)
          {
             SLEEP(1000000L);
@@ -2006,9 +2192,10 @@ pgmoneta_consume_copy_stream_start(SSL* ssl, int socket, struct stream_buffer* b
    config = (struct configuration*)shmem;
    do
    {
-      while (config->running && buffer->cursor >= buffer->end)
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+      if (config->running && buffer->cursor >= buffer->end)
       {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
+         status = pgmoneta_read_copy_stream(ssl, socket, 1, buffer);
          if (status == MESSAGE_STATUS_ZERO)
          {
             SLEEP(1000000L);
@@ -2019,21 +2206,36 @@ pgmoneta_consume_copy_stream_start(SSL* ssl, int socket, struct stream_buffer* b
          }
       }
       message->kind = buffer->buffer[buffer->cursor];
-      // try to get message length
-      while (buffer->cursor + 1 + 4 >= buffer->end)
-      {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
-         if (status == MESSAGE_STATUS_ZERO)
-         {
-            SLEEP(1000000L);
-         }
-         else if (status != MESSAGE_STATUS_OK)
-         {
-            goto error;
-         }
-      }
-      length = pgmoneta_read_int32(buffer->buffer + buffer->cursor + 1);
+      pgmoneta_log_trace("message->kind: %c", message->kind);
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+      buffer->start = buffer->end = buffer->cursor = 0;
+      memset(buffer->buffer, 0, buffer->size);
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
 
+      // pgmoneta_log_trace("okok");
+      status = pgmoneta_read_copy_stream(ssl, socket, 4, buffer);
+      if (status == MESSAGE_STATUS_ZERO)
+      {
+         SLEEP(1000000L);
+      }
+      else if (status != MESSAGE_STATUS_OK)
+      {
+         goto error;
+      }
+
+      length = pgmoneta_read_int32(buffer->buffer);
+      pgmoneta_log_trace("length: %d", length);
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+      message->length = length - 4;
+      // int format = pgmoneta_read_byte(buffer->buffer + buffer->cursor + 5);
+      // int n_rows = pgmoneta_read_int16(buffer->buffer + buffer->cursor + 6);
+      // int xlogptr = pgmoneta_read_int64(buffer->buffer + buffer->cursor + 1);
+      // pgmoneta_log_trace("lenght = %d, format = %d, n_rows = %d, xlogptr = %ld", length, format, n_rows, xlogptr);
+
+      buffer->start = buffer->end = buffer->cursor = 0;
+      memset(buffer->buffer, 0, buffer->size);
+
+      pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
       if (network_bucket)
       {
          while (1)
@@ -2049,18 +2251,40 @@ pgmoneta_consume_copy_stream_start(SSL* ssl, int socket, struct stream_buffer* b
          }
       }
       // receive the whole message even if we are going to skip it
-      while (buffer->cursor + 1 + length >= buffer->end)
+      // while (buffer->cursor + message->length >= buffer->end)
+      // {
+      if (message->kind == 'W')
       {
-         status = pgmoneta_read_copy_stream(ssl, socket, buffer);
-         if (status == MESSAGE_STATUS_ZERO)
-         {
-            SLEEP(1000000L);
-         }
-         else if (status != MESSAGE_STATUS_OK)
-         {
-            goto error;
-         }
+         pgmoneta_log_trace("W here");
+         status = pgmoneta_read_copy_stream(ssl, socket, -1, buffer);
+         pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+         buffer->start = buffer->end = buffer->cursor = 0;
+         memset(buffer->buffer, 0, buffer->size);
+         pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+         pgmoneta_log_trace("status: %d", status);
+         //       status = pgmoneta_read_copy_stream(ssl, socket, -1, buffer);
+         // pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+         //       pgmoneta_log_trace("status: %d", status);
       }
+      // else if(message->kind=='d'){
+
+      // }
+      else
+      {
+         pgmoneta_log_trace("msg->length: %d", message->length);
+         status = pgmoneta_read_copy_stream(ssl, socket, message->length, buffer);
+         pgmoneta_log_trace("cursor = %d, start = %d, end = %d", buffer->cursor, buffer->start, buffer->end);
+      }
+      if (status == MESSAGE_STATUS_ZERO)
+      {
+         SLEEP(1000000L);
+      }
+      else if (status != MESSAGE_STATUS_OK)
+      {
+         goto error;
+      }
+      // }
+
       if (message->kind != 'D' && message->kind != 'H' && message->kind != 'W' && message->kind != 'T' &&
           message->kind != 'c' && message->kind != 'f' && message->kind != 'E' && message->kind != 'd' && message->kind != 'C')
       {
@@ -2071,20 +2295,20 @@ pgmoneta_consume_copy_stream_start(SSL* ssl, int socket, struct stream_buffer* b
          continue;
       }
 
-      if (message->kind != 'D' && message->kind != 'T')
-      {
-         message->data = buffer->buffer + (buffer->cursor + 1 + 4);
-         message->length = length - 4;
-      }
-      else
-      {
-         /** include all the data in message's data buffer, i.e. include type and length info,
-          * if it's a DataRow or RowDescription message
-          * This is to accommodate our existing message parsing APIs for these two types of messages
-          */
-         message->data = buffer->buffer + buffer->cursor;
-         message->length = length + 1;
-      }
+      // if (message->kind != 'D' && message->kind != 'T')
+      // {
+      message->data = buffer->buffer;
+      pgmoneta_log_trace("message->data: %s (%ld)", message->data, strlen(message->data));
+      // }
+      // else
+      // {
+      //    /** include all the data in message's data buffer, i.e. include type and length info,
+      //     * if it's a DataRow or RowDescription message
+      //     * This is to accommodate our existing message parsing APIs for these two types of messages
+      //     */
+      //    message->data = buffer->buffer + buffer->cursor;
+      //    message->length = length + 1;
+      // }
 
       keep_read = false;
 
@@ -2101,24 +2325,25 @@ error:
 void
 pgmoneta_consume_copy_stream_end(struct stream_buffer* buffer, struct message* message)
 {
-   int length = pgmoneta_read_int32(buffer->buffer + buffer->cursor + 1);
-   buffer->cursor += (1 + length);
-   buffer->start = buffer->cursor;
+   // int length = pgmoneta_read_int32(buffer->buffer + buffer->cursor + 1);
+   // buffer->cursor += (1 + length);
+   // buffer->start = buffer->cursor;
    // left shift unconsumed data to reuse space
-   if (buffer->start < buffer->end)
-   {
-      if (buffer->start > 0)
-      {
-         memmove(buffer->buffer, buffer->buffer + buffer->start, buffer->end - buffer->start);
-         buffer->end -= buffer->start;
-         buffer->cursor -= buffer->start;
-         buffer->start = 0;
-      }
-   }
-   else
-   {
-      buffer->start = buffer->end = buffer->cursor = 0;
-   }
+   // if (buffer->start < buffer->end)
+   // {
+   // if (buffer->start > 0)
+   // {
+   //       memmove(buffer->buffer, buffer->buffer + buffer->start, buffer->end - buffer->start);
+   //       buffer->end -= buffer->start;
+   //       buffer->cursor -= buffer->start;
+   //       buffer->start = 0;
+   //    }
+   // }
+   // else
+   // {
+   buffer->start = buffer->end = buffer->cursor = 0;
+   memset(buffer->buffer, 0, buffer->size);
+   // }
    message->data = NULL;
    message->length = 0;
 }
@@ -2230,7 +2455,8 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
    char directory[MAX_PATH];
    char link_path[MAX_PATH];
    char null_buffer[2 * 512]; // 2 tar block size of terminator null bytes
-   FILE* file = NULL;
+   // FILE* file = NULL;
+   int fd = -1;
    struct query_response* response = NULL;
    struct message* msg = (struct message*)malloc(sizeof (struct message));
    struct tuple* tup = NULL;
@@ -2288,8 +2514,8 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
          }
       }
       pgmoneta_mkdir(directory);
-      file = fopen(file_path, "wb");
-      if (file == NULL)
+      fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600);
+      if (fd < 0)
       {
          pgmoneta_log_error("Could not create archive tar file");
          goto error;
@@ -2302,8 +2528,8 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
          {
             pgmoneta_log_copyfail_message(msg);
             pgmoneta_log_error_response_message(msg);
-            fflush(file);
-            fclose(file);
+            fsync(fd);
+            close(fd);
             goto error;
          }
          pgmoneta_consume_copy_stream_end(buffer, msg);
@@ -2315,8 +2541,8 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
          {
             pgmoneta_log_copyfail_message(msg);
             pgmoneta_log_error_response_message(msg);
-            fflush(file);
-            fclose(file);
+            fsync(fd);
+            close(fd);
             goto error;
          }
 
@@ -2339,11 +2565,11 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
             }
 
             // copy data
-            if (fwrite(msg->data, msg->length, 1, file) != 1)
+            if (pgmoneta_write_file(fd, msg->data, msg->length) != msg->length)
             {
                pgmoneta_log_error("could not write to file %s", file_path);
-               fflush(file);
-               fclose(file);
+               fsync(fd);
+               close(fd);
                goto error;
             }
          }
@@ -2351,15 +2577,15 @@ pgmoneta_receive_archive_files(SSL* ssl, int socket, struct stream_buffer* buffe
       }
       //append two blocks of null bytes to the end of the tar file
       memset(null_buffer, 0, 2 * 512);
-      if (fwrite(null_buffer, 2 * 512, 1, file) != 1)
+      if (pgmoneta_write_file(fd, null_buffer, 2 * 512) != 2 * 512)
       {
          pgmoneta_log_error("could not write to file %s", file_path);
-         fflush(file);
-         fclose(file);
+         fsync(fd);
+         close(fd);
          goto error;
       }
-      fflush(file);
-      fclose(file);
+      fsync(fd);
+      close(fd);
 
       // extract the file
       pgmoneta_extract_tar_file(file_path, directory);
@@ -2450,7 +2676,7 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
    memset(tmp_manifest_file_path, 0, sizeof(tmp_manifest_file_path));
    memset(null_buffer, 0, 2 * 512);
    char type;
-   FILE* file = NULL;
+   int fd = -1;
 
    if (msg == NULL)
    {
@@ -2493,19 +2719,19 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
             case 'n':
             {
                // append two blocks of null buffer and extract the tar file
-               if (file != NULL)
+               if (fd > 0)
                {
-                  if ((!is_server_side_compression()) && fwrite(null_buffer, 2 * 512, 1, file) != 1)
+                  if ((!is_server_side_compression()) && pgmoneta_write_file(fd, null_buffer, 2 * 512) != 2 * 512)
                   {
                      pgmoneta_log_error("could not write to file %s", file_path);
-                     fflush(file);
-                     fclose(file);
-                     file = NULL;
+                     fsync(fd);
+                     close(fd);
+                     fd = -1;
                      goto error;
                   }
-                  fflush(file);
-                  fclose(file);
-                  file = NULL;
+                  fsync(fd);
+                  close(fd);
+                  fd = -1;
                   pgmoneta_extract_tar_file(file_path, directory);
                   remove(file_path);
                }
@@ -2564,8 +2790,9 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
                   }
                }
                pgmoneta_mkdir(directory);
-               file = fopen(file_path, "wb");
-               if (file == NULL)
+
+               fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600);
+               if (fd < 0)
                {
                   pgmoneta_log_error("Could not create archive tar file");
                   goto error;
@@ -2575,19 +2802,19 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
             case 'm':
             {
                // start of manifest, finish off previous data archive receiving
-               if (file != NULL)
+               if (fd > 0)
                {
-                  if ((!is_server_side_compression()) && fwrite(null_buffer, 2 * 512, 1, file) != 1)
+                  if ((!is_server_side_compression()) && pgmoneta_write_file(fd, null_buffer, 2 * 512) != 2 * 512)
                   {
                      pgmoneta_log_error("could not write to file %s", file_path);
-                     fflush(file);
-                     fclose(file);
-                     file = NULL;
+                     fsync(fd);
+                     close(fd);
+                     fd = -1;
                      goto error;
                   }
-                  fflush(file);
-                  fclose(file);
-                  file = NULL;
+                  fsync(fd);
+                  close(fd);
+                  fd = -1;
                   pgmoneta_extract_tar_file(file_path, directory);
                   remove(file_path);
                }
@@ -2601,7 +2828,8 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
                   snprintf(tmp_manifest_file_path, sizeof(tmp_manifest_file_path), "%s/data/%s", basedir, "backup_manifest.tmp");
                   snprintf(manifest_file_path, sizeof(manifest_file_path), "%s/data/%s", basedir, "backup_manifest");
                }
-               file = fopen(tmp_manifest_file_path, "wb");
+
+               fd = open(tmp_manifest_file_path, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600);
                break;
             }
             case 'd':
@@ -2627,7 +2855,7 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
                   }
                }
 
-               if (fwrite(msg->data + 1, msg->length - 1, 1, file) != 1)
+               if (pgmoneta_write_file(fd, msg->data + 1, msg->length - 1) != msg->length - 1)
                {
                   pgmoneta_log_error("could not write to file %s", file_path);
                   goto error;
@@ -2650,16 +2878,16 @@ pgmoneta_receive_archive_stream(SSL* ssl, int socket, struct stream_buffer* buff
       pgmoneta_consume_copy_stream_end(buffer, msg);
    }
 
-   if (file != NULL)
+   if (fd > 0)
    {
       if (rename(tmp_manifest_file_path, manifest_file_path) != 0)
       {
          pgmoneta_log_error("could not rename file %s to %s", tmp_manifest_file_path, manifest_file_path);
          goto error;
       }
-      fflush(file);
-      fclose(file);
-      file = NULL;
+      fsync(fd);
+      close(fd);
+      fd = -1;
    }
 
    // update symlink
@@ -2711,10 +2939,10 @@ error:
    {
       pgmoneta_disconnect(socket);
    }
-   if (file != NULL)
+   if (fd > 0)
    {
-      fflush(file);
-      fclose(file);
+      fsync(fd);
+      close(fd);
    }
    pgmoneta_free_query_response(response);
    pgmoneta_free_message(msg);
@@ -2726,8 +2954,8 @@ pgmoneta_receive_manifest_file(SSL* ssl, int socket, struct stream_buffer* buffe
 {
    char tmp_file_path[MAX_PATH];
    char file_path[MAX_PATH];
-   FILE* file = NULL;
    struct message* msg = (struct message*)malloc(sizeof (struct message));
+   int fd = -1;
 
    if (msg == NULL)
    {
@@ -2750,9 +2978,9 @@ pgmoneta_receive_manifest_file(SSL* ssl, int socket, struct stream_buffer* buffe
       snprintf(tmp_file_path, sizeof(tmp_file_path), "%s/data/%s", basedir, "backup_manifest.tmp");
       snprintf(file_path, sizeof(file_path), "%s/data/%s", basedir, "backup_manifest");
    }
-   file = fopen(tmp_file_path, "wb");
+   fd = open(tmp_file_path, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600);
 
-   if (file == NULL)
+   if (fd < 0)
    {
       goto error;
    }
@@ -2798,7 +3026,7 @@ pgmoneta_receive_manifest_file(SSL* ssl, int socket, struct stream_buffer* buffe
          }
 
          // copy data
-         if (fwrite(msg->data, msg->length, 1, file) != 1)
+         if (pgmoneta_write_file(fd, msg->data, msg->length) != msg->length)
          {
             pgmoneta_log_error("could not write to file %s", file_path);
             goto error;
@@ -2812,14 +3040,14 @@ pgmoneta_receive_manifest_file(SSL* ssl, int socket, struct stream_buffer* buffe
       pgmoneta_log_error("could not rename file %s to %s", tmp_file_path, file_path);
       goto error;
    }
-   fflush(file);
-   fclose(file);
+   fsync(fd);
+   close(fd);
    pgmoneta_free_message(msg);
    return 0;
 
 error:
-   fflush(file);
-   fclose(file);
+   fsync(fd);
+   close(fd);
    pgmoneta_free_message(msg);
    return 1;
 }

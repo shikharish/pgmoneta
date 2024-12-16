@@ -969,16 +969,19 @@ pgmoneta_management_read_json(SSL* ssl, int socket, uint8_t* compression, uint8_
    size_t decoded_size = 0;
    size_t decrypted_size = 0;
 
+   pgmoneta_log_trace("here1");
    if (read_uint8("pgmoneta-cli", ssl, socket, &compress_method))
    {
       goto error;
    }
+   pgmoneta_log_trace("%d", compress_method);
 
    if (compression != NULL)
    {
       *compression = compress_method;
    }
 
+   pgmoneta_log_trace("here2");
    if (read_uint8("pgmoneta-cli", ssl, socket, &encrypt_method))
    {
       goto error;
@@ -1465,6 +1468,7 @@ read:
       r = SSL_read(ssl, buf + offset, needs);
    }
 
+   pgmoneta_log_trace("needs = %d, r = %d", needs, r);
    if (r == -1)
    {
       if (errno == EAGAIN || errno == EWOULDBLOCK)

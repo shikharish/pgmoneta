@@ -40,6 +40,7 @@ extern "C" {
 /** @struct stream_buffer
  * Defines a streaming buffer
  */
+
 struct stream_buffer
 {
    char* buffer;  /**< allocated buffer holding streaming data */
@@ -47,6 +48,13 @@ struct stream_buffer
    int start;     /**< offset to the first unconsumed data in buffer */
    int end;       /**< offset to the first position after available data */
    int cursor;    /**< next byte to consume */
+} __attribute__ ((aligned (64)));
+
+struct msg_stream_buffer
+{
+   struct stream_buffer* buf;
+   signed char kind;
+   signed char d_type;
 } __attribute__ ((aligned (64)));
 
 /**

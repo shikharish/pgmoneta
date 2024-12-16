@@ -261,7 +261,7 @@ pgmoneta_extract_message(char type, struct message* msg, struct message** extrac
 int
 pgmoneta_extract_error_fields(char type, struct message* msg, char** extracted)
 {
-   ssize_t offset = 1 + 4;
+   ssize_t offset = 0;
    char* result = NULL;
    *extracted = NULL;
 
@@ -348,12 +348,12 @@ pgmoneta_extract_message_from_data(char type, void* data, size_t data_size, stru
          m_length = pgmoneta_read_int32(data + offset + 1);
 
          result = (struct message*)malloc(sizeof(struct message));
-         m_data = aligned_alloc((size_t)ALIGNMENT_SIZE, pgmoneta_get_aligned_size(1 + m_length));
+         m_data = aligned_alloc((size_t)ALIGNMENT_SIZE, pgmoneta_get_aligned_size(m_length - 4));
 
-         memcpy(m_data, data + offset, 1 + m_length);
+         memcpy(m_data, data + offset + 5, m_length - 4);
 
-         result->kind = pgmoneta_read_byte(m_data);
-         result->length = 1 + m_length;
+         result->kind = t;
+         result->length = m_length - 4;
          result->data = m_data;
 
          *extracted = result;

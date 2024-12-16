@@ -1089,24 +1089,28 @@ pgmoneta_server_authenticate(int server, char* database, char* username, char* p
       goto error;
    }
 
+   pgmoneta_log_trace("A");
    ret = pgmoneta_create_ssl_message(&ssl_msg);
    if (ret != MESSAGE_STATUS_OK)
    {
       goto error;
    }
 
+   pgmoneta_log_trace("B");
    ret = pgmoneta_write_message(NULL, server_fd, ssl_msg);
    if (ret != MESSAGE_STATUS_OK)
    {
       goto error;
    }
 
+   pgmoneta_log_trace("C");
    ret = pgmoneta_read_block_message(NULL, server_fd, &msg);
    if (ret != MESSAGE_STATUS_OK)
    {
       goto error;
    }
 
+   pgmoneta_log_trace("D");
    if (msg->kind == 'S')
    {
       SSL_CTX* ctx = NULL;

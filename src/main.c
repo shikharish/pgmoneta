@@ -1198,7 +1198,7 @@ accept_mgt_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
       else if (pid == 0)
       {
          struct json* pyl = NULL;
-         
+
          shutdown_ports();
 
          pgmoneta_json_clone(payload, &pyl);
@@ -2229,6 +2229,7 @@ verify_replication_slot(char* slot_name, int srv, SSL* ssl, int socket)
    config = (struct configuration*)shmem;
 
    pgmoneta_create_search_replication_slot_message(slot_name, &query);
+   pgmoneta_log_trace("message: kind: %c, length: %d, data: %s", query->kind, query->length, query->data);
    if (pgmoneta_query_execute(ssl, socket, query, &response) || response == NULL)
    {
       pgmoneta_log_error("Could not execute verify replication slot query for %s", config->servers[srv].name);

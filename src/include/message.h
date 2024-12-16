@@ -54,6 +54,7 @@ extern struct token_bucket bucket;
 struct message
 {
    signed char kind;  /**< The kind of the message */
+   signed char d_type;
    ssize_t length;    /**< The length of the message */
    void* data;        /**< The message data */
 } __attribute__ ((aligned (64)));
@@ -461,7 +462,7 @@ pgmoneta_query_response_debug(struct query_response* response);
  * @return 1 upon success, 0 if no data received, otherwise 2
  */
 int
-pgmoneta_read_copy_stream(SSL* ssl, int socket, struct stream_buffer* buffer);
+pgmoneta_read_copy_stream(SSL* ssl, int socket, int bytes, struct stream_buffer* buffer);
 
 /**
  * Consume the data in copy stream buffer, get the next valid message in the copy stream buffer
